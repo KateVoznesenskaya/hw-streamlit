@@ -6,9 +6,21 @@ st.title('Анализ температурных данных')
 
 file = st.file_uploader('Выберите CSV-файл с историческими данными')
 if not file:
-    st.info('Загрузите historical_data.csv')
+    st.info('Загрузите temperature_data.csv')
     st.stop()
-df_his_data = pd.read_csv(file)
+
+@st.cache_data
+def his_data(f):
+    df_data = pd.read_csv(f)
+    df_data['rol_temp'] = df_data.groupby('city')['temperature'].transform(lambda x: x.rolling(window=30, min_periods=1).mean())
+    df_data_mn = df_data.groupby(['city', 'season'])['temperature'].mean().reset_index(name='mean')
+    df_data = pd.merge(df_data, df_data_mn, left_on=['city', 'season'], right_on=['city', 'season'])
+    df_data_std = df_data.groupby(['city', 'season'])['temperature'].std().reset_index(name='std')
+    df_data = pd.merge(df_data, df_data_std, left_on=['city', 'season'], right_on=['city', 'season'])
+    df_data['an'] = (df_data['temperature'] > (df_data['mean'] + 2 * df_data['std'])) | (df_data['temperature'] < (df_data['mean'] - 2 * df_data['std']))
+    return df_data
+
+df_his_data = his_data(file)
 
 city = st.selectbox('Выберите город', df_his_data['city'].unique())
 
